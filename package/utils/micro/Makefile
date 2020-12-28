@@ -15,7 +15,7 @@ PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
 PKG_SOURCE_URL:=https://github.com/zyedidia/micro/archive/v$(PKG_VERSION).tar.gz
 PKG_HASH:=3e1b7483aa2afffa8afc2c710e22541961ac3de5e026efb4bdddc8ade00d4de0
 
-PKG_LICENSE:=GPL-3.0-or-later
+PKG_LICENSE:=MIT
 PKG_LICENSE_FILES:=COPYING
 PKG_MAINTAINER:=Thaison Nguyen <thieson08@me.com>
 # PKG_CPE_ID:=cpe:/a:gnu:nano
