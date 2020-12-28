@@ -44,13 +44,11 @@ define Package/micro/description
   while also taking advantage of the capabilities of modern terminals.
 endef
 
-CONFIGURE_ARGS +=
-
-CONFIGURE_VARS +=
-
 define Package/micro/install
 	$(INSTALL_DIR) $(1)/usr/bin
 	$(CP) $(PKG_INSTALL_DIR)/usr/bin/$(PKG_NAME) $(1)/usr/bin/
 endef
 
+$(eval $(call GoBinHostBuild))
+$(eval $(call HostBuild))
 $(eval $(call BuildPackage,micro))
