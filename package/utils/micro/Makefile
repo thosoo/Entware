@@ -30,7 +30,7 @@ PKG_BUILD_PARALLEL:=1
 
 include $(INCLUDE_DIR)/package.mk
 
-define Package/nano
+define Package/micro
   SUBMENU:=Editors
   SECTION:=utils
   CATEGORY:=Utilities
