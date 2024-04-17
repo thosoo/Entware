@@ -19,6 +19,10 @@ jobs:
         python3-distutils python3-setuptools python3-dev rsync subversion \
         swig time xsltproc zlib1g-dev
 
+    - name: Update the package feeds
+      run: |
+        make package/symlinks
+
     - name: Configure build
       run: |
         cp -v configs/armv7-2.6.config .config
