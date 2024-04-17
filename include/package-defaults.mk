@@ -1,10 +1,8 @@
+# SPDX-License-Identifier: GPL-2.0-only
 #
-# Copyright (C) 2006 OpenWrt.org
-#
-# This is free software, licensed under the GNU General Public License v2.
-# See /LICENSE for more information.
-#
+# Copyright (C) 2006-2020 OpenWrt.org
 
+# Entware specific: keep GCC_LIBSSP|USE_GLIBC
 PKG_DEFAULT_DEPENDS = +libc +GCC_LIBSSP:libssp +USE_GLIBC:librt +USE_GLIBC:libpthread
 
 ifneq ($(PKG_NAME),toolchain)
@@ -52,7 +50,7 @@ define Package/Default
   KCONFIG:=
   BUILDONLY:=
   HIDDEN:=
-  URL:=
+  URL:=$(PKG_URL)
   VARIANT:=
   DEFAULT_VARIANT:=
   USERID:=
@@ -72,17 +70,18 @@ ifneq ($(strip $(PKG_UNPACK)),)
 endif
 
 EXTRA_CXXFLAGS = $(EXTRA_CFLAGS)
-#ifeq ($(CONFIG_BUILD_NLS),y)
-#    DISABLE_NLS:=
-#else
+ifeq ($(CONFIG_BUILD_NLS),y)
+    DISABLE_NLS:=
+else
     DISABLE_NLS:=--disable-nls
-#endif
+endif
 
 CONFIGURE_PREFIX:=/opt
 CONFIGURE_ARGS = \
 		--target=$(GNU_TARGET_NAME) \
 		--host=$(GNU_TARGET_NAME) \
 		--build=$(GNU_HOST_NAME) \
+		--disable-dependency-tracking \
 		--program-prefix="" \
 		--program-suffix="" \
 		--prefix=$(CONFIGURE_PREFIX) \
@@ -90,11 +89,11 @@ CONFIGURE_ARGS = \
 		--bindir=$(CONFIGURE_PREFIX)/bin \
 		--sbindir=$(CONFIGURE_PREFIX)/sbin \
 		--libexecdir=$(CONFIGURE_PREFIX)/lib \
-		--sysconfdir=$(CONFIGURE_PREFIX)/etc \
+		--sysconfdir=/opt/etc \
 		--datadir=$(CONFIGURE_PREFIX)/share \
-		--localstatedir=$(CONFIGURE_PREFIX)/var \
-		--mandir=$(CONFIGURE_PREFIX)/man \
-		--infodir=$(CONFIGURE_PREFIX)/info \
+		--localstatedir=/opt/var \
+		--mandir=$(CONFIGURE_PREFIX)/share/man \
+		--infodir=$(CONFIGURE_PREFIX)/share/info \
 		$(DISABLE_NLS) \
 		$(DISABLE_IPV6)
 

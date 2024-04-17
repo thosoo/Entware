@@ -7,18 +7,18 @@
 # Entware specific:
 # * opkg binary segfaults when a real package is replaced by "provided" package.
 # we removed PROVIDES libncurses field in libncursesw and added a real libncurses package that
-# installes symlinks.
-# * ncurses-bin packages added
+# installes symlinks. Add ALTERNATIVES clear, reset.
 
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=ncurses
-PKG_VERSION:=6.2
-PKG_RELEASE:=1
+PKG_CPE_ID:=cpe:/a:gnu:ncurses
+PKG_VERSION:=6.4
+PKG_RELEASE:=2a
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=@GNU/$(PKG_NAME)
-PKG_HASH:=30306e0c76e0f9f1f0de987cf1c82a5c21e1ce6568b9227f7da5b71cbea86c9d
+PKG_HASH:=6931283d9ac87c5073f30b6290c4c75f21632bb4fc3603ac8100812bed248159
 
 PKG_LICENSE:=MIT
 PKG_LICENSE_FILES:=README
@@ -60,17 +60,11 @@ define Package/libncurses-dev
   SECTION:=devel
   CATEGORY:=Development
   SUBMENU:=Libraries
-  DEPENDS:=zlib +libncurses
+  DEPENDS:=+zlib +libncurses
   TITLE:=Development files for the ncurses library
-endef
-
-define Package/ncurses-bin
-  SECTION:=utils
-  CATEGORY:=Utilities
-  SUBMENU:=Terminal
-  DEPENDS:=+libncursesw
-  TITLE:=Terminal-related programs
-  URL:=http://www.gnu.org/software/ncurses/
+  ALTERNATIVES:= \
+		300:/opt/bin/clear:/opt/bin/clear-ncurses \
+		300:/opt/bin/reset:/opt/bin/reset-ncurses
 endef
 
 TARGET_CFLAGS += $(FPIC)
@@ -85,6 +79,7 @@ CONFIGURE_ARGS += \
 	--without-debug \
 	--without-manpages \
 	--without-profile \
+	--with-progs \
 	--without-tests \
 	--disable-big-core \
 	--disable-home-terminfo \
@@ -142,7 +137,23 @@ ifneq ($(HOST_OS),FreeBSD)
 			mv $$$$dir $$$$(echo -ne "\x$$$$dir"); \
 		done \
 	)
-	for file in a/ansi d/dumb l/linux r/rxvt r/rxvt-unicode s/screen s/screen-256color v/vt100 v/vt102 x/xterm x/xterm-color x/xterm-256color x/xterm-utf8; do \
+	for file in \
+		a/ansi \
+		a/alacritty \
+		d/dumb \
+		l/linux \
+		r/rxvt \
+		r/rxvt-unicode \
+		s/screen \
+		s/screen-256color \
+		t/tmux \
+		t/tmux-256color \
+		v/vt100 \
+		v/vt102 \
+		x/xterm \
+		x/xterm-color \
+		x/xterm-256color \
+		x/xterm-utf8; do \
 		$(INSTALL_DIR) $(1)/opt/share/terminfo/`dirname $$$$file`; \
 		$(CP) $(PKG_INSTALL_DIR)/opt/share/terminfo/$$$$file \
 			$(1)/opt/share/terminfo/$$$$file; \
@@ -165,29 +176,28 @@ endef
 
 define Package/libncurses-dev/install
 	$(INSTALL_DIR) $(1)/opt/bin
-	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/opt/bin/* $(1)/opt/bin/
+	$(CP) $(PKG_INSTALL_DIR)/opt/bin/* $(1)/opt/bin/
+	rm -f $(1)/opt/bin/{clear,reset}
+	$(CP) $(PKG_INSTALL_DIR)/opt/bin/clear $(1)/opt/bin/clear-ncurses
+	$(LN) tset $(1)/opt/bin/reset-ncurses
 	$(INSTALL_DIR) $(1)/opt/include
 	$(CP) $(PKG_INSTALL_DIR)/opt/include/*.h $(1)/opt/include/
 	$(INSTALL_DIR) $(1)/opt/lib
 	$(CP) $(PKG_INSTALL_DIR)/opt/lib/*.a $(1)/opt/lib/
 	$(INSTALL_DIR) $(1)/opt/lib/pkgconfig
 	$(CP) $(PKG_INSTALL_DIR)/opt/lib/pkgconfig/*.pc $(1)/opt/lib/pkgconfig/
+	# XXX
+	$(SED) 's,$(TOOLCHAIN_DIR),/opt,g' $(1)/opt/bin/ncursesw6-config
 endef
 
 define Package/libncurses/install
 	$(INSTALL_DIR) $(1)/opt/lib
-	ln -s libncurses.so.6.2 $(1)/opt/lib/libcurses.so
+	ln -s libncurses.so.$(PKG_VERSION) $(1)/opt/lib/libcurses.so
 	for lib in ncurses panel menu form; do \
 		ln -s lib$$$${lib}w.so $(1)/opt/lib/lib$$$${lib}.so; \
 		ln -s lib$$$${lib}w.so.6 $(1)/opt/lib/lib$$$${lib}.so.6; \
-		ln -s lib$$$${lib}w.so.6.2 $(1)/opt/lib/lib$$$${lib}.so.6.2; \
+		ln -s lib$$$${lib}w.so.$(PKG_VERSION) $(1)/opt/lib/lib$$$${lib}.so.$(PKG_VERSION); \
 	done
-endef
-
-define Package/ncurses-bin/install
-	$(INSTALL_DIR) $(1)/opt/bin
-	$(CP) $(PKG_INSTALL_DIR)/opt/bin/* $(1)/opt/bin
-	$(RM) $(1)/opt/bin/ncurses6-config
 endef
 
 define Build/InstallDev
@@ -213,7 +223,6 @@ endef
 
 $(eval $(call HostBuild))
 $(eval $(call BuildPackage,terminfo))
-$(eval $(call BuildPackage,libncursesw))
 $(eval $(call BuildPackage,libncurses))
+$(eval $(call BuildPackage,libncursesw))
 $(eval $(call BuildPackage,libncurses-dev))
-$(eval $(call BuildPackage,ncurses-bin))

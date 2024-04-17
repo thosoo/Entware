@@ -4,20 +4,21 @@
 # This is free software, licensed under the GNU General Public License v2.
 # See /LICENSE for more information.
 #
+# Entware specific: add ALTERNATIVES ar
 
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=binutils
-PKG_VERSION:=2.34
+PKG_VERSION:=2.41
 PKG_RELEASE:=1
 
 PKG_SOURCE_URL:=@GNU/binutils
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.xz
 PKG_VERSION:=$(PKG_VERSION)
-PKG_HASH:=f00b0e8803dc9bab1e2165bd568528135be734df3fabf8d0161828cd56028952
+PKG_HASH:=ae9a5789e23459e59606e6714723f2d3ffc31c03174191ef0d015bdf06007450
 
-PKG_FIXUP:=autoreconf
-PKG_LIBTOOL_PATHS:=. gas bfd opcodes gprof binutils ld libiberty gold intl
+PKG_FIXUP:=patch-libtool
+PKG_LIBTOOL_PATHS:=. gas bfd opcodes gprof gprofng binutils ld libiberty gold intl libctf libsframe
 PKG_REMOVE_FILES:=libtool.m4
 PKG_INSTALL:=1
 
@@ -25,7 +26,7 @@ PKG_MAINTAINER:=Felix Fietkau <nbd@nbd.name>
 PKG_LICENSE:=GPL-3.0+
 PKG_CPE_ID:=cpe:/a:gnu:binutils
 PKG_BUILD_PARALLEL:=1
-PKG_USE_MIPS16:=0
+PKG_BUILD_FLAGS:=no-mips16
 
 include $(INCLUDE_DIR)/nls.mk
 include $(INCLUDE_DIR)/package.mk
@@ -34,7 +35,7 @@ define Package/libbfd
   SECTION:=libs
   CATEGORY:=Libraries
   TITLE:=libbfd
-  DEPENDS:=+zlib $(ICONV_DEPENDS) $(INTL_DEPENDS)
+  DEPENDS:=+zlib $(INTL_DEPENDS)
 endef
 
 define Package/libctf
@@ -56,6 +57,7 @@ define Package/binutils
   CATEGORY:=Development
   TITLE:=binutils
   DEPENDS:=+objdump +ar
+  ALTERNATIVES:=200:/opt/bin/strings:/opt/bin/binutils-strings
 endef
 
 define Package/objdump
@@ -70,6 +72,7 @@ define Package/ar
   CATEGORY:=Development
   TITLE:=ar
   DEPENDS:=+zlib +libbfd
+  ALTERNATIVES:=200:/opt/bin/ar:/opt/bin/binutils-ar
 endef
 
 define Package/binutils/description
@@ -78,13 +81,22 @@ endef
 
 TARGET_CFLAGS += $(FPIC) -Wno-unused-value
 
+TARGET_LDFLAGS += $(if $(INTL_FULL),-lintl)
+
+GCC_VERSION:=$(call qstrip,$(CONFIG_GCC_VERSION))
+
 CONFIGURE_ARGS += \
 	--host=$(REAL_GNU_TARGET_NAME) \
 	--target=$(REAL_GNU_TARGET_NAME) \
 	--enable-shared \
 	--enable-install-libiberty \
 	--enable-install-libbfd \
-	--enable-install-libctf
+	--enable-install-libctf \
+	--with-lib-path="/opt/lib/gcc/$(REAL_GNU_TARGET_NAME)/$(GCC_VERSION):/opt/lib:/opt/usr/lib" \
+	--with-system-zlib \
+	--without-zstd \
+	--without-msgpack \
+	--disable-gprofng
 
 define Build/Install
 	$(call Build/Install/Default)
@@ -101,7 +113,8 @@ endef
 
 define Package/libbfd/install
 	$(INSTALL_DIR) $(1)/opt/lib
-	$(CP) $(PKG_INSTALL_DIR)/opt/lib/libbfd*.so $(1)/opt/lib/
+	$(CP) $(PKG_INSTALL_DIR)/opt/lib/libbfd*.so* $(1)/opt/lib/
+	$(CP) $(PKG_INSTALL_DIR)/opt/lib/libsframe*.so* $(1)/opt/lib/
 endef
 
 define Package/libctf/install
@@ -121,7 +134,7 @@ endef
 
 define Package/ar/install
 	$(INSTALL_DIR) $(1)/opt/bin
-	$(CP) $(PKG_INSTALL_DIR)/opt/bin/ar $(1)/opt/bin/
+	$(CP) $(PKG_INSTALL_DIR)/opt/bin/ar $(1)/opt/bin/binutils-ar
 endef
 
 define Package/binutils/install

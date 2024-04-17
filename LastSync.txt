@@ -1,6 +1,10 @@
-commit 7c114f33dd8c6eea5cebe6cf524f4e16154b623c (HEAD -> master, origin/master, origin/HEAD)
-Author: Paul Spooren <mail@aparcar.org>
-Date:   Tue Nov 24 22:06:37 2020 -1000
+commit 07ea72976168461d9a243a4201a8d1e6cf529715 (HEAD -> master, origin/master, origin/main, origin/HEAD)
+Author: Nick Hainke <vincent@systemli.org>
+Date:   Tue Feb 6 12:26:33 2024 +0100
 
-    opkg: purge package from cache on hash mismatch
-......
+    toolchain: binutils: add support for version 2.42
+    
+    Release Notes:
+    https://lists.gnu.org/archive/html/info-gnu/2024-01/msg00016.html
+    
+    Signed-off-by: Nick Hainke <vincent@systemli.org>

@@ -5,29 +5,30 @@
 # See /LICENSE for more information.
 #
 # Entware specific: OPENSSL_OPTIONS += -DOPENSSL_RAND_SEED_DEVRANDOM_SHM_ID=-1
+# openssl.cnf: optional 'engines=engines'
 
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=openssl
-PKG_BASE:=1.1.1
-PKG_BUGFIX:=h
-PKG_VERSION:=$(PKG_BASE)$(PKG_BUGFIX)
+PKG_VERSION:=3.0.13
 PKG_RELEASE:=1
-PKG_USE_MIPS16:=0
-ENGINES_DIR=engines-1.1
+PKG_BUILD_FLAGS:=no-mips16 gc-sections no-lto
 
 PKG_BUILD_PARALLEL:=1
 
+PKG_BASE:=$(subst $(space),.,$(wordlist 1,2,$(subst .,$(space),$(PKG_VERSION))))
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:= \
-	http://ftp.fi.muni.cz/pub/openssl/source/ \
-	http://ftp.linux.hr/pub/openssl/source/ \
-	ftp://ftp.pca.dfn.de/pub/tools/net/openssl/source/ \
 	http://www.openssl.org/source/ \
-	http://www.openssl.org/source/old/$(PKG_BASE)/
-PKG_HASH:=5c9ca8774bd7b03e5784f26ae9e9e6d749c9da2438545077e6b3d755a06595d9
+	http://www.openssl.org/source/old/$(PKG_BASE)/ \
+	http://ftp.fi.muni.cz/pub/openssl/source/ \
+	http://ftp.fi.muni.cz/pub/openssl/source/old/$(PKG_BASE)/ \
+	ftp://ftp.pca.dfn.de/pub/tools/net/openssl/source/ \
+	ftp://ftp.pca.dfn.de/pub/tools/net/openssl/source/old/$(PKG_BASE)/
 
-PKG_LICENSE:=OpenSSL
+PKG_HASH:=88525753f79d3bec27d2fa7c66aa0b92b3aa9498dafd93d7cfa4b3780cdae313
+
+PKG_LICENSE:=Apache-2.0
 PKG_LICENSE_FILES:=LICENSE
 PKG_MAINTAINER:=Eneas U de Queiroz <cotequeiroz@gmail.com>
 PKG_CPE_ID:=cpe:/a:openssl:openssl
@@ -40,6 +41,7 @@ PKG_CONFIG_DEPENDS:= \
 	CONFIG_OPENSSL_NO_DEPRECATED \
 	CONFIG_OPENSSL_OPTIMIZE_SPEED \
 	CONFIG_OPENSSL_PREFER_CHACHA_OVER_GCM \
+	CONFIG_OPENSSL_SMALL_FOOTPRINT \
 	CONFIG_OPENSSL_WITH_ARIA \
 	CONFIG_OPENSSL_WITH_ASM \
 	CONFIG_OPENSSL_WITH_ASYNC \
@@ -51,7 +53,6 @@ PKG_CONFIG_DEPENDS:= \
 	CONFIG_OPENSSL_WITH_DTLS \
 	CONFIG_OPENSSL_WITH_EC2M \
 	CONFIG_OPENSSL_WITH_ERROR_MESSAGES \
-	CONFIG_OPENSSL_WITH_GOST \
 	CONFIG_OPENSSL_WITH_IDEA \
 	CONFIG_OPENSSL_WITH_MDC2 \
 	CONFIG_OPENSSL_WITH_NPN \
@@ -65,6 +66,7 @@ PKG_CONFIG_DEPENDS:= \
 	CONFIG_OPENSSL_WITH_WHIRLPOOL
 
 include $(INCLUDE_DIR)/package.mk
+include $(INCLUDE_DIR)/openssl-module.mk
 
 ifneq ($(CONFIG_CCACHE),)
 HOSTCC=$(HOSTCC_NOCACHE)
@@ -92,9 +94,10 @@ endef
 define Package/libopenssl
 $(call Package/openssl/Default)
   SUBMENU:=SSL
-  DEPENDS:=+OPENSSL_WITH_COMPRESSION:zlib
+  DEPENDS:=+OPENSSL_WITH_COMPRESSION:zlib \
+	   +(arm||armeb||mips||mipsel||powerpc||arc):libatomic
   TITLE+= (libraries)
-  ABI_VERSION:=1.1
+  ABI_VERSION:=$(firstword $(subst .,$(space),$(PKG_VERSION)))
   MENU:=1
 endef
 
@@ -125,64 +128,96 @@ endef
 
 define Package/libopenssl-conf/conffiles
 /opt/etc/ssl/openssl.cnf
+$(if $(CONFIG_OPENSSL_ENGINE_BUILTIN_DEVCRYPTO),/etc/ssl/modules.cnf.d/devcrypto.cnf)
+$(if $(CONFIG_OPENSSL_ENGINE_BUILTIN_PADLOCK),/etc/ssl/modules.cnf.d/padlock.cnf)
 endef
 
 define Package/libopenssl-conf/description
 $(call Package/openssl/Default/description)
-This package installs the OpenSSL configuration file /etc/ssl/openssl.cnf.
+This package installs the OpenSSL configuration file /opt/etc/ssl/openssl.cnf.
 endef
 
+ifneq ($(CONFIG_OPENSSL_ENGINE_BUILTIN_PADLOCK)$(CONFIG_OPENSSL_ENGINE_BUILTIN_DEVCRYPTO),)
+define Package/libopenssl-conf/postinst
+#!/bin/sh
+
+add_engine_config() {
+	if [ -z "$${IPKG_INSTROOT}" ] && uci -q get "openssl.$$1" >/dev/null; then
+		[ "$$(uci -q get "openssl.$$1.builtin")" = 1 ] && return
+		uci set "openssl.$$1.builtin=1" && uci commit openssl
+		return
+	fi
+}
+
+$(if $(CONFIG_OPENSSL_ENGINE_BUILTIN_DEVCRYPTO),add_engine_config devcrypto)
+$(if $(CONFIG_OPENSSL_ENGINE_BUILTIN_PADLOCK),add_engine_config padlock)
+endef
+endif
+
+$(eval $(call Package/openssl/add-provider,legacy))
+define Package/libopenssl-legacy
+  $(call Package/openssl/Default)
+  $(call Package/openssl/module/Default)
+  TITLE:=OpenSSL legacy provider
+endef
+
+define Package/libopenssl-legacy/description
+The OpenSSL legacy provider supplies OpenSSL implementations of algorithms that
+have been deemed legacy. Such algorithms have commonly fallen out of use, have
+been deemed insecure by the cryptography community, or something similar.  See
+https://www.openssl.org/docs/man3.0/man7/OSSL_PROVIDER-legacy.html
+endef
+
+$(eval $(call Package/openssl/add-engine,afalg))
 define Package/libopenssl-afalg
   $(call Package/openssl/Default)
-  SUBMENU:=SSL
+  $(call Package/openssl/engine/Default)
   TITLE:=AFALG hardware acceleration engine
-  DEPENDS:=libopenssl @OPENSSL_ENGINE @KERNEL_AIO \
-	   +PACKAGE_libopenssl-afalg:kmod-crypto-user +libopenssl-conf @!OPENSSL_ENGINE_BUILTIN
+  DEPENDS += @KERNEL_AIO +PACKAGE_libopenssl-afalg:kmod-crypto-user \
+	     @!OPENSSL_ENGINE_BUILTIN
 endef
 
 define Package/libopenssl-afalg/description
 This package adds an engine that enables hardware acceleration
 through the AF_ALG kernel interface.
-To use it, you need to configure the engine in /etc/ssl/openssl.cnf
-See https://www.openssl.org/docs/man1.1.1/man5/config.html#Engine-Configuration-Module
+See https://www.openssl.org/docs/man3.0/man5/config.html#Engine-Configuration
 and https://openwrt.org/docs/techref/hardware/cryptographic.hardware.accelerators
 The engine_id is "afalg"
 endef
 
+$(eval $(call Package/openssl/add-engine,devcrypto))
 define Package/libopenssl-devcrypto
   $(call Package/openssl/Default)
-  SUBMENU:=SSL
+  $(call Package/openssl/engine/Default)
   TITLE:=/dev/crypto hardware acceleration engine
-  DEPENDS:=libopenssl @OPENSSL_ENGINE +PACKAGE_libopenssl-devcrypto:kmod-cryptodev +libopenssl-conf \
-	   @!OPENSSL_ENGINE_BUILTIN
+  DEPENDS += +PACKAGE_libopenssl-devcrypto:kmod-cryptodev @!OPENSSL_ENGINE_BUILTIN
 endef
 
 define Package/libopenssl-devcrypto/description
 This package adds an engine that enables hardware acceleration
 through the /dev/crypto kernel interface.
-To use it, you need to configure the engine in /etc/ssl/openssl.cnf
-See https://www.openssl.org/docs/man1.1.1/man5/config.html#Engine-Configuration-Module
+See https://www.openssl.org/docs/man3.0/man5/config.html#Engine-Configuration
 and https://openwrt.org/docs/techref/hardware/cryptographic.hardware.accelerators
 The engine_id is "devcrypto"
 endef
 
+$(eval $(call Package/openssl/add-engine,padlock))
 define Package/libopenssl-padlock
   $(call Package/openssl/Default)
-  SUBMENU:=SSL
+  $(call Package/openssl/engine/Default)
   TITLE:=VIA Padlock hardware acceleration engine
-  DEPENDS:=libopenssl @OPENSSL_ENGINE @TARGET_x86 +PACKAGE_libopenssl-padlock:kmod-crypto-hw-padlock \
-	   +libopenssl-conf @!OPENSSL_ENGINE_BUILTIN
+  DEPENDS += @TARGET_x86 +PACKAGE_libopenssl-padlock:kmod-crypto-hw-padlock \
+	     @!OPENSSL_ENGINE_BUILTIN
 endef
 
 define Package/libopenssl-padlock/description
 This package adds an engine that enables VIA Padlock hardware acceleration.
-To use it, you need to configure it in /etc/ssl/openssl.cnf.
-See https://www.openssl.org/docs/man1.1.1/man5/config.html#Engine-Configuration-Module
+See https://www.openssl.org/docs/man3.0/man5/config.html#Engine-Configuration
 and https://openwrt.org/docs/techref/hardware/cryptographic.hardware.accelerators
 The engine_id is "padlock"
 endef
 
-OPENSSL_OPTIONS:= shared
+OPENSSL_OPTIONS:= shared no-tests
 
 OPENSSL_OPTIONS += -DOPENSSL_RAND_SEED_DEVRANDOM_SHM_ID=-1
 
@@ -256,7 +291,9 @@ endif
 
 ifeq ($(CONFIG_OPENSSL_OPTIMIZE_SPEED),y)
   TARGET_CFLAGS := $(filter-out -O%,$(TARGET_CFLAGS)) -O3
-else
+endif
+
+ifeq ($(CONFIG_OPENSSL_SMALL_FOOTPRINT),y)
   OPENSSL_OPTIONS += -DOPENSSL_SMALL_FOOTPRINT
 endif
 
@@ -270,7 +307,7 @@ ifdef CONFIG_OPENSSL_ENGINE
       OPENSSL_OPTIONS += enable-devcryptoeng
     endif
     ifndef CONFIG_OPENSSL_ENGINE_BUILTIN_PADLOCK
-      OPENSSL_OPTIONS += no-hw-padlock
+      OPENSSL_OPTIONS += no-padlockeng
     endif
   else
     ifdef CONFIG_PACKAGE_libopenssl-devcrypto
@@ -280,15 +317,11 @@ ifdef CONFIG_OPENSSL_ENGINE
       OPENSSL_OPTIONS += no-afalgeng
     endif
     ifndef CONFIG_PACKAGE_libopenssl-padlock
-      OPENSSL_OPTIONS += no-hw-padlock
+      OPENSSL_OPTIONS += no-padlockeng
     endif
   endif
 else
   OPENSSL_OPTIONS += no-engine
-endif
-
-ifndef CONFIG_OPENSSL_WITH_GOST
-  OPENSSL_OPTIONS += no-gost
 endif
 
 ifndef CONFIG_OPENSSL_WITH_DTLS
@@ -325,7 +358,7 @@ endif
 
 OPENSSL_TARGET:=linux-$(call qstrip,$(CONFIG_ARCH))-openwrt
 
-STAMP_CONFIGURED := $(STAMP_CONFIGURED)_$(shell echo $(OPENSSL_OPTIONS) | mkhash md5)
+STAMP_CONFIGURED := $(STAMP_CONFIGURED)_$(shell echo $(OPENSSL_OPTIONS) | $(MKHASH) md5)
 
 define Build/Configure
 	(cd $(PKG_BUILD_DIR); \
@@ -333,6 +366,8 @@ define Build/Configure
 			--prefix=/opt \
 			--libdir=lib \
 			--openssldir=/opt/etc/ssl \
+			--cross-compile-prefix="$(TARGET_CROSS)" \
+			$(TARGET_CFLAGS) \
 			$(TARGET_CPPFLAGS) \
 			$(TARGET_LDFLAGS) \
 			$(OPENSSL_OPTIONS) && \
@@ -340,19 +375,16 @@ define Build/Configure
 	)
 endef
 
-TARGET_CFLAGS += $(FPIC) -ffunction-sections -fdata-sections
-TARGET_LDFLAGS += -Wl,--gc-sections
+TARGET_CFLAGS += $(FPIC)
 
 define Build/Compile
 	+$(MAKE) $(PKG_JOBS) -C $(PKG_BUILD_DIR) \
-		CROSS_COMPILE="$(TARGET_CROSS)" \
 		CC="$(TARGET_CC)" \
 		SOURCE_DATE_EPOCH=$(SOURCE_DATE_EPOCH) \
 		OPENWRT_OPTIMIZATION_FLAGS="$(TARGET_CFLAGS)" \
 		$(OPENSSL_MAKEFLAGS) \
 		all
 	$(MAKE) -C $(PKG_BUILD_DIR) \
-		CROSS_COMPILE="$(TARGET_CROSS)" \
 		CC="$(TARGET_CC)" \
 		DESTDIR="$(PKG_INSTALL_DIR)" \
 		$(OPENSSL_MAKEFLAGS) \
@@ -380,8 +412,17 @@ define Package/libopenssl/install
 endef
 
 define Package/libopenssl-conf/install
-	$(INSTALL_DIR) $(1)/opt/etc/ssl
+	$(INSTALL_DIR) $(1)/opt/etc/ssl/modules.cnf.d
 	$(CP) $(PKG_INSTALL_DIR)/opt/etc/ssl/openssl.cnf $(1)/opt/etc/ssl/
+#	$(INSTALL_BIN) ./files/openssl.init $(1)/etc/init.d/openssl
+#	$(SED) 's!%ENGINES_DIR%!/usr/lib/$(ENGINES_DIR)!' $(1)/etc/init.d/openssl
+#	touch $(1)/etc/config/openssl
+	$(if $(CONFIG_OPENSSL_ENGINE_BUILTIN_DEVCRYPTO),
+		$(CP) ./files/devcrypto.cnf $(1)/etc/ssl/modules.cnf.d/
+		echo -e "config engine 'devcrypto'\n\toption enabled '1'\n\toption builtin '1'" >> $(1)/etc/config/openssl)
+	$(if $(CONFIG_OPENSSL_ENGINE_BUILTIN_PADLOCK),
+		$(CP) ./files/padlock.cnf $(1)/etc/ssl/modules.cnf.d/
+		echo -e "\nconfig engine 'padlock'\n\toption enabled '1'\n\toption builtin '1'" >> $(1)/etc/config/openssl)
 endef
 
 define Package/openssl-util/install
@@ -389,24 +430,10 @@ define Package/openssl-util/install
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/opt/bin/openssl $(1)/opt/bin/
 endef
 
-define Package/libopenssl-afalg/install
-	$(INSTALL_DIR) $(1)/opt/lib/$(ENGINES_DIR)
-	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/opt/lib/$(ENGINES_DIR)/afalg.so $(1)/opt/lib/$(ENGINES_DIR)
-endef
-
-define Package/libopenssl-devcrypto/install
-	$(INSTALL_DIR) $(1)/opt/lib/$(ENGINES_DIR)
-	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/opt/lib/$(ENGINES_DIR)/devcrypto.so $(1)/opt/lib/$(ENGINES_DIR)
-endef
-
-define Package/libopenssl-padlock/install
-	$(INSTALL_DIR) $(1)/opt/lib/$(ENGINES_DIR)
-	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/opt/lib/$(ENGINES_DIR)/*padlock.so $(1)/opt/lib/$(ENGINES_DIR)
-endef
-
 $(eval $(call BuildPackage,libopenssl))
 $(eval $(call BuildPackage,libopenssl-conf))
 #$(eval $(call BuildPackage,libopenssl-afalg))
 #$(eval $(call BuildPackage,libopenssl-devcrypto))
+$(eval $(call BuildPackage,libopenssl-legacy))
 #$(eval $(call BuildPackage,libopenssl-padlock))
 $(eval $(call BuildPackage,openssl-util))

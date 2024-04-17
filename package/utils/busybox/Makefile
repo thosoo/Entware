@@ -1,33 +1,32 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
 #
-# Copyright (C) 2006-2020 OpenWrt.org
+# Copyright (C) 2006-2021 OpenWrt.org
 #
-# This is free software, licensed under the GNU General Public License v2.
-# See /LICENSE for more information.
-#
-# Entware specific: postinst/prerm
+# Entware specific: postinst/prerm; no jsonfilter as deps; no configs
 
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=busybox
-PKG_VERSION:=1.31.1
-PKG_RELEASE:=6
+PKG_VERSION:=1.36.1
+PKG_RELEASE:=1c
 PKG_FLAGS:=essential
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
 PKG_SOURCE_URL:=https://www.busybox.net/downloads \
 		http://sources.buildroot.net
-PKG_HASH:=d0f940a72f648943c1f2211e0e3117387c31d765137d92bd8284a3fb9752a998
+PKG_HASH:=b8cc24c9574d809e7279c3be349795c5d5ceb6fdf19ca709f80cde50e47de314
 
 PKG_BUILD_DEPENDS:=BUSYBOX_CONFIG_PAM:libpam
 PKG_BUILD_PARALLEL:=1
+PKG_BUILD_FLAGS:=lto
 PKG_CHECK_FORMAT_SECURITY:=0
-
-#Busybox use it's own PIE config flag and LDFLAGS are used with ld, not gcc.
-PKG_ASLR_PIE:=0
 
 PKG_LICENSE:=GPL-2.0
 PKG_LICENSE_FILES:=LICENSE archival/libarchive/bz/LICENSE
 PKG_CPE_ID:=cpe:/a:busybox:busybox
+
+BUSYBOX_SYM=$(if $(CONFIG_BUSYBOX_CUSTOM),CONFIG,DEFAULT)
+BUSYBOX_IF_ENABLED=$(if $(CONFIG_BUSYBOX_$(BUSYBOX_SYM)_$(1)),$(2))
 
 ifneq ($(CONFIG_BUSYBOX_$(BUSYBOX_SYM)_FEATURE_SUID),)
   PKG_FILE_MODES:=/opt/bin/busybox:root:root:4755
@@ -36,11 +35,8 @@ endif
 include $(INCLUDE_DIR)/package.mk
 
 ifeq ($(DUMP),)
-  STAMP_CONFIGURED:=$(strip $(STAMP_CONFIGURED))_$(shell grep '^CONFIG_BUSYBOX_' $(TOPDIR)/.config | mkhash md5)
+  STAMP_CONFIGURED:=$(strip $(STAMP_CONFIGURED))_$(shell grep '^CONFIG_BUSYBOX_' $(TOPDIR)/.config | $(MKHASH) md5)
 endif
-
-BUSYBOX_SYM=$(if $(CONFIG_BUSYBOX_CUSTOM),CONFIG,DEFAULT)
-BUSYBOX_IF_ENABLED=$(if $(CONFIG_BUSYBOX_$(BUSYBOX_SYM)_$(1)),$(2))
 
 # All files provided by busybox will serve as fallback alternatives by opkg.
 # There should be no need to enumerate ALTERNATIVES entries here
@@ -50,7 +46,7 @@ define Package/busybox/Default
   MAINTAINER:=Felix Fietkau <nbd@nbd.name>
   TITLE:=Core utilities for embedded Linux
   URL:=http://busybox.net/
-  DEPENDS:=+BUSYBOX_CONFIG_PAM:libpam +BUSYBOX_CONFIG_NTPD:jsonfilter
+  DEPENDS:=+BUSYBOX_CONFIG_PAM:libpam #+BUSYBOX_CONFIG_NTPD:jsonfilter
   USERID:=ntp=123:ntp=123
 endef
 
@@ -77,33 +73,38 @@ define Package/busybox/config
 	source "$(SOURCE)/Config.in"
 endef
 
-ifdef CONFIG_BUSYBOX_CONFIG_FEATURE_SYSLOG
-define Package/busybox/conffiles
+ifneq ($(CONFIG_BUSYBOX_$(BUSYBOX_SYM)_FEATURE_SYSLOG)$(CONFIG_BUSYBOX_$(BUSYBOX_SYM)_FEATURE_SYSLOGD_CFG),)
+define Package/busybox/conffiles/syslog
 /opt/etc/syslog.conf
 endef
-
-Package/busybox-selinux/conffiles = $(Package/busybox/conffiles)
 endif
 
-# don't create a version string containing the actual timestamp
-export KCONFIG_NOTIMESTAMP=1
+ifneq ($(CONFIG_BUSYBOX_$(BUSYBOX_SYM)_CROND),)
+define Package/busybox/conffiles/crond
+/opt/etc/crontabs/
+endef
+endif
 
+#define Package/busybox/conffiles
+#$(Package/busybox/conffiles/syslog)
+#$(Package/busybox/conffiles/crond)
+#endef
+
+#Package/busybox-selinux/conffiles = $(Package/busybox/conffiles)
 
 ifndef CONFIG_USE_MUSL
 LDLIBS:=m crypt
 endif
 
 LDLIBS += $(call BUSYBOX_IF_ENABLED,PAM,pam pam_misc pthread)
+
 ifeq ($(CONFIG_USE_GLIBC),y)
-  LDLIBS += $(call BUSYBOX_IF_ENABLED,NSLOOKUP_OPENWRT,resolv)
+  LDLIBS += $(call BUSYBOX_IF_ENABLED,NSLOOKUP,resolv)
 endif
 
 ifeq ($(BUILD_VARIANT),selinux)
   LDLIBS += selinux sepol
 endif
-
-TARGET_CFLAGS += -flto
-TARGET_LDFLAGS += -flto=jobserver -fuse-linker-plugin
 
 MAKE_VARS :=
 MAKE_FLAGS += \
@@ -139,12 +140,9 @@ endef
 define Package/busybox/install
 	$(INSTALL_DIR) $(1)/opt/{bin,sbin}
 	$(INSTALL_BIN) $(PKG_INSTALL_DIR)/opt/bin/busybox $(1)/opt/bin/
-	chmod u+s $(1)/opt/bin/busybox
 	$(INSTALL_DIR) $(1)/opt/share
-	(cd $(PKG_INSTALL_DIR); \
-	    find ./opt -lname "*" | sed "s|^./opt/||g" > $(1)/opt/share/busybox_applets.lst.dist)
+	$(FIND) $(PKG_INSTALL_DIR) -lname "*" | sed "s|$(PKG_INSTALL_DIR)/opt/||g" > $(1)/opt/share/busybox_applets.lst.dist
 endef
-
 
 # The postinst & prerm scripts will work only when busybox has readlink applet.
 # We cannot use readlink directly, it is not yet installed and use 'busybox readlink' instead.

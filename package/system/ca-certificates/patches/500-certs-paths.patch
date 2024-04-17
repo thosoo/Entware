@@ -3,20 +3,23 @@
 @@ -2,7 +2,7 @@
  # Makefile
  #
-
+ 
 -CERTSDIR = /usr/share/ca-certificates
 +CERTSDIR = /opt/share/ca-certificates
  SUBDIRS = mozilla
-
+ 
  all:
 --- a/sbin/Makefile
 +++ b/sbin/Makefile
-@@ -8,4 +8,4 @@
- clean:
+@@ -3,7 +3,7 @@
+ #
+ #
  
- install:
--	install -m755 update-ca-certificates $(DESTDIR)/usr/sbin/
-+	install -m755 update-ca-certificates $(DESTDIR)/opt/sbin/
+-SBINDIR = /usr/sbin
++SBINDIR = /opt/sbin
+ 
+ all:
+ 
 --- a/sbin/update-ca-certificates
 +++ b/sbin/update-ca-certificates
 @@ -24,12 +24,12 @@
@@ -28,7 +31,7 @@
 -LOCALCERTSDIR=/usr/local/share/ca-certificates
 +CERTSCONF=/opt/etc/ca-certificates.conf
 +CERTSDIR=/opt/share/ca-certificates
-+LOCALCERTSDIR=/opt/local/share/ca-certificates
++LOCALCERTSDIR=/opt/share/ca-certificates
  CERTBUNDLE=ca-certificates.crt
 -ETCCERTSDIR=/etc/ssl/certs
 -HOOKSDIR=/etc/ca-certificates/update.d

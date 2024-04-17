@@ -4,21 +4,25 @@
 # This is free software, licensed under the GNU General Public License v2.
 # See /LICENSE for more information.
 #
+# Entware specific: keep CONFIG_USE_GLIBC
 
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=lua
 PKG_VERSION:=5.1.5
-PKG_RELEASE:=7
+PKG_RELEASE:=10
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
-PKG_SOURCE_URL:=http://www.lua.org/ftp/ \
-	http://www.tecgraf.puc-rio.br/lua/ftp/
+PKG_SOURCE_URL:=https://www.lua.org/ftp/ \
+	https://www.tecgraf.puc-rio.br/lua/ftp/
 PKG_HASH:=2640fc56a795f29d28ef15e13c34a47e223960b0240e8cb0a82d9b0738695333
 PKG_BUILD_PARALLEL:=1
 
 PKG_LICENSE:=MIT
 PKG_LICENSE_FILES:=COPYRIGHT
+PKG_CPE_ID:=cpe:/a:lua:lua
+
+PKG_BUILD_FLAGS:=no-lto
 
 HOST_PATCH_DIR := ./patches-host
 
@@ -30,7 +34,7 @@ define Package/lua/Default
   SECTION:=lang
   CATEGORY:=Languages
   TITLE:=Lua programming language
-  URL:=http://www.lua.org/
+  URL:=https://www.lua.org/
   MAINTAINER:=Jo-Philipp Wich <jo@mein.io>
 endef
 
@@ -99,7 +103,7 @@ define Build/Compile
 		RANLIB="$(TARGET_CROSS)ranlib" \
 		INSTALL_ROOT=/opt \
 		CFLAGS="$(TARGET_CPPFLAGS) $(TARGET_CFLAGS)" \
-		MYLDFLAGS="$(TARGET_LDFLAGS) $(if $(CONFIG_USE_GLIBC),-lm)" \
+		MYLDFLAGS="$(TARGET_LDFLAGS) $(if $(CONFIG_USE_GLIBC),-lm -ldl)" \
 		PKG_VERSION=$(PKG_VERSION) \
 		linux
 	rm -rf $(PKG_INSTALL_DIR)
@@ -125,7 +129,7 @@ endif
 
 define Host/Compile
 	$(MAKE) -C $(HOST_BUILD_DIR) \
-		CC="$(HOSTCC) -std=gnu99" \
+		CC="$(HOSTCC) $(HOST_FPIC) -std=gnu99" \
 		$(LUA_OS)
 endef
 
@@ -134,8 +138,12 @@ define Host/Install
 		INSTALL_TOP="$(STAGING_DIR_HOSTPKG)" \
 		install
 
-	$(LN) $(STAGING_DIR_HOSTPKG)/bin/lua5.1 $(STAGING_DIR_HOSTPKG)/bin/lua
-	$(LN) $(STAGING_DIR_HOSTPKG)/bin/luac5.1 $(STAGING_DIR_HOSTPKG)/bin/luac
+	$(INSTALL_DIR) $(STAGING_DIR_HOSTPKG)/lib/pkgconfig
+	$(CP) $(HOST_BUILD_DIR)/etc/lua.pc $(STAGING_DIR_HOSTPKG)/lib/pkgconfig/lua5.1.pc
+
+	$(LN) lua5.1 $(STAGING_DIR_HOSTPKG)/bin/lua
+	$(LN) luac5.1 $(STAGING_DIR_HOSTPKG)/bin/luac
+	$(LN) lua5.1.pc $(STAGING_DIR_HOSTPKG)/lib/pkgconfig/lua.pc
 endef
 
 define Build/InstallDev
@@ -148,7 +156,6 @@ define Build/InstallDev
 	$(CP) $(PKG_INSTALL_DIR)/opt/lib/liblua.{a,so*} $(1)/opt/lib/
 	$(LN) liblua.so.$(PKG_VERSION) $(1)/opt/lib/liblualib.so
 	$(INSTALL_DIR) $(1)/opt/lib/pkgconfig
-	$(SED) 's,/usr/local,/opt,g' $(PKG_BUILD_DIR)/etc/lua.pc
 	$(CP) $(PKG_BUILD_DIR)/etc/lua.pc $(1)/opt/lib/pkgconfig/
 endef
 

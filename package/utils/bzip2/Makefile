@@ -9,7 +9,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=bzip2
 PKG_VERSION:=1.0.8
-PKG_RELEASE:=1
+PKG_RELEASE:=1a
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 PKG_SOURCE_URL:=https://sourceware.org/pub/bzip2
@@ -55,15 +55,17 @@ define Package/bzip2/description
 	data compressor. This package provides the binary.
 endef
 
+# XXX no autotools
 TARGET_CFLAGS += \
-	$(FPIC) \
-	$(TARGET_LDFLAGS)
+	$(FPIC)
 
-CONFIGURE_ARGS += --prefix=/opt
+#CONFIGURE_ARGS += --prefix=/usr
 
 MAKE_FLAGS += \
 	-f Makefile-libbz2_so \
 	CFLAGS="$(TARGET_CFLAGS)" \
+	LDFLAGS="$(TARGET_LDFLAGS)" \
+	PREFIX=/opt \
 	all
 
 define Build/InstallDev
@@ -84,22 +86,25 @@ endef
 define Package/bzip2/install
 	$(INSTALL_DIR) $(1)/opt/bin/
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/bzip2-shared $(1)/opt/bin/bzip2
+#	$(INSTALL_DIR) $(1)/bin/
+#	$(LN) ../usr/bin/bzip2 $(1)/bin/bzip2
 endef
 
 HOST_CFLAGS += \
-	$(FPIC) \
-	$(HOST_LDFLAGS)
+	$(FPIC)
 
 HOST_MAKE_FLAGS+= \
 	CFLAGS="$(HOST_CFLAGS)" \
+	LDFLAGS="$(HOST_LDFLAGS)" \
+	PREFIX=$(STAGING_DIR_HOSTPKG) \
 	all
 
-HOST_CONFIGURE_ARGS+= \
-	--prefix=$(STAGING_DIR_HOSTPKG)
+#HOST_CONFIGURE_ARGS+= \
+#	--prefix=$(STAGING_DIR_HOSTPKG)
 
 define Host/Install
 	$(INSTALL_DIR) $(STAGING_DIR_HOSTPKG)/bin/
-	$(MAKE) -C $(HOST_BUILD_DIR) PREFIX=$(STAGING_DIR_HOSTPKG)/ install
+	$(MAKE) -C $(HOST_BUILD_DIR) PREFIX=$(STAGING_DIR_HOSTPKG) install
 endef
 
 $(eval $(call HostBuild))

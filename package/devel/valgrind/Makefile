@@ -8,12 +8,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=valgrind
-PKG_VERSION:=3.16.1
+PKG_VERSION:=3.22.0
 PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.bz2
-PKG_SOURCE_URL:=http://sourceware.org/pub/valgrind/
-PKG_HASH:=c91f3a2f7b02db0f3bc99479861656154d241d2fdb265614ba918cc6720a33ca
+PKG_SOURCE_URL:=https://sourceware.org/pub/valgrind/
+PKG_HASH:=c811db5add2c5f729944caf47c4e7a65dcaabb9461e472b578765dd7bf6d2d4c
 
 PKG_MAINTAINER:=Felix Fietkau <nbd@nbd.name>
 PKG_LICENSE:=GPL-2.0+
@@ -22,7 +22,7 @@ PKG_CPE_ID:=cpe:/a:valgrind:valgrind
 PKG_FIXUP = autoreconf
 PKG_INSTALL := 1
 PKG_BUILD_PARALLEL := 1
-PKG_USE_MIPS16:=0
+PKG_BUILD_FLAGS:=no-mips16
 PKG_SSP:=0
 
 STRIP:=:
@@ -85,7 +85,8 @@ endef
 CPU := $(patsubst x86_64,amd64,$(patsubst x86,i386,$(patsubst um,$(ARCH),$(LINUX_KARCH))))
 
 CONFIGURE_VARS += \
-	UNAME_R=$(LINUX_VERSION)
+	UNAME_R=$(LINUX_VERSION) \
+	ac_cv_path_GDB='/opt/bin/gdb'
 
 ifeq ($(CONFIG_ARCH_64BIT),y)
 	CONFIGURE_ARGS += \
@@ -145,7 +146,7 @@ define Package/valgrind-cachegrind/install
 		$(1)/opt/lib/valgrind/
 	$(patsubst STRIP=%,STRIP="$(TARGET_CROSS)strip",$(RSTRIP)) $(PKG_INSTALL_DIR)/opt/bin
 	$(patsubst STRIP=%,STRIP="$(TARGET_CROSS)strip -g",$(RSTRIP)) $(PKG_INSTALL_DIR)/opt/lib/valgrind/cachegrind-*
-	# XXX Entware cpecific: fix exec path in scripts
+	# XXX Entware specific: fix exec path in scripts
 	$(SED) 's,^#!.*perl,#!/opt/bin/perl,' $(1)/opt/bin/cg_{annotate,diff}
 endef
 
@@ -158,7 +159,7 @@ define Package/valgrind-callgrind/install
 		$(1)/opt/lib/valgrind/
 	$(patsubst STRIP=%,STRIP="$(TARGET_CROSS)strip",$(RSTRIP)) $(PKG_INSTALL_DIR)/opt/bin
 	$(patsubst STRIP=%,STRIP="$(TARGET_CROSS)strip -g",$(RSTRIP)) $(PKG_INSTALL_DIR)/opt/lib/valgrind/callgrind-*
-	# XXX Entware cpecific: fix exec path in scripts
+	# XXX Entware specific: fix exec path in scripts
 	$(SED) 's,^#!.*perl,#!/opt/bin/perl,' $(1)/opt/bin/callgrind_{annotate,control}
 endef
 
@@ -182,7 +183,7 @@ define Package/valgrind-massif/install
 		$(1)/opt/lib/valgrind/
 	$(patsubst STRIP=%,STRIP="$(TARGET_CROSS)strip",$(RSTRIP)) $(PKG_INSTALL_DIR)/opt/bin
 	$(patsubst STRIP=%,STRIP="$(TARGET_CROSS)strip -g",$(RSTRIP)) $(PKG_INSTALL_DIR)/opt/lib/valgrind/massif-*
-	# XXX Entware cpecific: fix exec path in scripts
+	# XXX Entware specific: fix exec path in scripts
 	$(SED) 's,^#!.*perl,#!/opt/bin/perl,' $(1)/opt/bin/ms_print
 endef
 
