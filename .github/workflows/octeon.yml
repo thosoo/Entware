@@ -27,6 +27,10 @@ jobs:
       run: |
         cp -v configs/octeon-2.6.config .config
 
+    - name: Cleanup
+      run: |
+        make -j$(nproc) clean  V=s
+
     - name: Build Environments
       run: |
         make -j$(nproc) tools/install  V=s
