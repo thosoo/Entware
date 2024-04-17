@@ -1,0 +1,38 @@
+name: Build Nano for Octeon
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential ccache ecj fastjar file g++ gawk \
+        gettext git java-propose-classpath libelf-dev libncurses5-dev \
+        libncursesw5-dev libssl-dev python2 python2.7-dev python3 unzip wget \
+        python3-distutils python3-setuptools python3-dev rsync subversion \
+        swig time xsltproc zlib1g-dev
+
+    - name: Update the package feeds
+      run: |
+        make package/symlinks
+
+    - name: Configure build
+      run: |
+        cp -v configs/octeon-2.6.config .config
+
+    - name: Build Environments
+      run: |
+        make -j$(nproc) tools/install  V=s
+        make -j$(nproc) toolchain/install V=s
+        make -j$(nproc) target/compile  V=s
+
+    - name: Compile Nano
+      run: |
+        make package/nano/compile V=s
