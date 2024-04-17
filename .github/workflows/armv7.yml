@@ -27,6 +27,12 @@ jobs:
       run: |
         cp -v configs/armv7-2.6.config .config
 
+    - name: Configure build
+      run: |
+        make -j$(nproc) tools/install
+        make -j$(nproc) toolchain/install
+        make -j$(nproc) target/compile
+        
     - name: Compile Nano
       run: |
         make package/nano/compile V=s
